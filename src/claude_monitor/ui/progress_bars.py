@@ -5,6 +5,7 @@ Provides token usage, time progress, and model usage progress bars.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from typing import Any, Final, Protocol, TypedDict
 
@@ -325,3 +326,112 @@ class ModelUsageBar(BaseProgressBar):
         summary = " | ".join(legend_parts)
 
         return f"[{bar_display}] {summary}"
+
+
+class PieChart:
+    """Renders a small terminal pie chart using Unicode block characters.
+
+    Each grid cell's (x, y) position is mapped to an angle from the centre
+    and coloured to whichever slice owns that angle.  A 2:1 aspect-ratio
+    correction is applied so the result looks circular in a typical terminal.
+    """
+
+    # Chart dimensions in terminal characters
+    WIDTH: Final[int] = 13
+    HEIGHT: Final[int] = 7
+
+    # Styles matching the ModelUsageBar bucket colours
+    _BUCKET_STYLES: Final[dict] = {
+        "sonnet": "info",
+        "opus": "warning",
+        "haiku": "success",
+        "other": "dim",
+    }
+    _BUCKET_LABELS: Final[dict] = {
+        "sonnet": "Sonnet",
+        "opus": "Opus",
+        "haiku": "Haiku",
+        "other": "Other",
+    }
+
+    def render(self, per_model_stats: dict[str, Any]) -> list[str]:
+        """Render a pie chart plus legend from per-model token stats.
+
+        Args:
+            per_model_stats: Same format as ModelUsageBar — model name → stats dict.
+
+        Returns:
+            List of Rich-markup strings, one per terminal row.
+            First rows are the chart; the final row is the colour legend.
+        """
+        buckets: dict[str, int] = {"sonnet": 0, "opus": 0, "haiku": 0, "other": 0}
+
+        for model_name, stats in per_model_stats.items():
+            tokens = stats.get("input_tokens", 0) + stats.get("output_tokens", 0)
+            lower = model_name.lower()
+            if "sonnet" in lower:
+                buckets["sonnet"] += tokens
+            elif "opus" in lower:
+                buckets["opus"] += tokens
+            elif "haiku" in lower:
+                buckets["haiku"] += tokens
+            else:
+                buckets["other"] += tokens
+
+        total = sum(buckets.values())
+        if total == 0:
+            return ["[dim](no model data)[/]"]
+
+        # Build slice angle boundaries (clockwise from top, 0→2π)
+        slices: list[tuple[float, float, str]] = []
+        cumulative = 0.0
+        for key in ("sonnet", "opus", "haiku", "other"):
+            if buckets[key] == 0:
+                continue
+            start_angle = cumulative / total * 2 * math.pi
+            cumulative += buckets[key]
+            end_angle = cumulative / total * 2 * math.pi
+            slices.append((start_angle, end_angle, self._BUCKET_STYLES[key]))
+
+        cx = self.WIDTH / 2.0
+        cy = self.HEIGHT / 2.0
+        # Terminal chars are ~2x taller than wide, so divide ny by 2 so the
+        # circle looks round rather than squished vertically.
+        ASPECT = 2.0
+
+        lines: list[str] = []
+        for row in range(self.HEIGHT):
+            parts: list[str] = []
+            for col in range(self.WIDTH):
+                nx = (col - cx + 0.5) / (self.WIDTH / 2.0)
+                ny = (row - cy + 0.5) / (self.HEIGHT / 2.0) / ASPECT
+
+                if math.sqrt(nx * nx + ny * ny) > 1.0:
+                    parts.append(" ")
+                    continue
+
+                # atan2(x, -y) gives clockwise angle from the top (12 o'clock = 0)
+                angle = math.atan2(nx, -ny) % (2 * math.pi)
+
+                style = "dim"
+                for start, end, s in slices:
+                    if start <= angle < end:
+                        style = s
+                        break
+
+                parts.append(f"[{style}]█[/]")
+
+            lines.append("".join(parts))
+
+        # Colour-coded legend beneath the chart
+        legend_parts: list[str] = []
+        for key in ("sonnet", "opus", "haiku", "other"):
+            if buckets[key] == 0:
+                continue
+            pct = buckets[key] / total * 100
+            style = self._BUCKET_STYLES[key]
+            label = self._BUCKET_LABELS[key]
+            legend_parts.append(f"[{style}]█[/] {label} {pct:.1f}%")
+
+        lines.append("  ".join(legend_parts))
+        return lines

@@ -13,6 +13,7 @@ from claude_monitor.ui.components import CostIndicator, VelocityIndicator
 from claude_monitor.ui.layouts import HeaderManager
 from claude_monitor.ui.progress_bars import (
     ModelUsageBar,
+    PieChart,
     TimeProgressBar,
     TokenProgressBar,
 )
@@ -60,6 +61,7 @@ class SessionDisplayComponent:
         self.token_progress = TokenProgressBar()
         self.time_progress = TimeProgressBar()
         self.model_usage = ModelUsageBar()
+        self.pie_chart = PieChart()
 
     def _render_wide_progress_bar(self, percentage: float) -> str:
         """Render a wide progress bar (50 chars) using centralized progress bar logic.
@@ -253,12 +255,10 @@ class SessionDisplayComponent:
             )
             screen_buffer.append("")
 
-            if per_model_stats:
-                model_bar = self.model_usage.render(per_model_stats)
-                screen_buffer.append(f"🤖 [value]Model Distribution:[/]   {model_bar}")
-            else:
-                model_bar = self.model_usage.render({})
-                screen_buffer.append(f"🤖 [value]Model Distribution:[/]   {model_bar}")
+            screen_buffer.append("🤖 [value]Model Distribution:[/]")
+            pie_lines = self.pie_chart.render(per_model_stats if per_model_stats else {})
+            for pie_line in pie_lines:
+                screen_buffer.append(f"   {pie_line}")
             screen_buffer.append(f"[separator]{'─' * 60}[/]")
 
             velocity_emoji = VelocityIndicator.get_velocity_emoji(burn_rate)
