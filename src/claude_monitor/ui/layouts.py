@@ -43,8 +43,10 @@ class HeaderManager:
         """
         from pathlib import Path
 
+        from claude_monitor._version import get_version
+
         sparkles: str = self.DEFAULT_SPARKLES
-        title: str = "CLAUDE CODE USAGE MONITOR"
+        title: str = f"CLAUDE CODE USAGE MONITOR [white]v{get_version()}[/white]"
         separator: str = self.separator_char * self.separator_length
 
         if data_path:
