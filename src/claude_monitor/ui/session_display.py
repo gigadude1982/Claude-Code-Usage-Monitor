@@ -394,6 +394,7 @@ class SessionDisplayComponent:
         token_limit: int,
         current_time: Optional[datetime] = None,
         args: Optional[Any] = None,
+        **kwargs,
     ) -> list[str]:
         """Format screen for no active session state.
 
@@ -403,6 +404,7 @@ class SessionDisplayComponent:
             token_limit: Token limit for the plan
             current_time: Current datetime
             args: Command line arguments
+            **kwargs: Optional keyword arguments including data_path and account_info
 
         Returns:
             List of formatted screen lines
@@ -411,7 +413,14 @@ class SessionDisplayComponent:
         screen_buffer = []
 
         header_manager = HeaderManager()
-        screen_buffer.extend(header_manager.create_header(plan, timezone))
+        screen_buffer.extend(
+            header_manager.create_header(
+                plan,
+                timezone,
+                kwargs.get("data_path"),
+                kwargs.get("account_info"),
+            )
+        )
 
         empty_token_bar = self.token_progress.render(0.0)
         screen_buffer.append(f"📊 [value]Token Usage:[/]    {empty_token_bar}")
