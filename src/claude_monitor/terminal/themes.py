@@ -74,55 +74,55 @@ class AdaptiveColorScheme:
         """Font colors optimized for light terminal backgrounds (WCAG AA+ contrast)."""
         return Theme(
             {
-                "header": "color(17)",  # Deep blue (#00005f) - 21:1 contrast
-                "info": "color(19)",  # Dark blue (#0000af) - 18:1 contrast
-                "warning": "color(166)",  # Dark orange (#d75f00) - 8:1 contrast
-                "error": "color(124)",  # Dark red (#af0000) - 12:1 contrast
-                "success": "color(22)",  # Dark green (#005f00) - 15:1 contrast
-                "value": "color(235)",  # Very dark gray (#262626) - 16:1 contrast
-                "dim": "color(243)",  # Medium gray (#767676) - 5:1 contrast
-                "separator": "color(240)",  # Light gray (#585858) - 6:1 contrast
-                "progress_bar": "black",  # Pure black for light theme
-                "highlight": "color(124)",  # Dark red (#af0000) - matches error
+                "header": "blue",
+                "info": "blue",
+                "warning": "red",
+                "error": "red",
+                "success": "green",
+                "value": "black",
+                "dim": "bright_black",
+                "separator": "bright_black",
+                "progress_bar": "black",
+                "highlight": "red",
                 # Cost styles
-                "cost.low": "black",  # Pure black for light theme
-                "cost.medium": "black",  # Pure black for light theme
-                "cost.high": "black",  # Pure black for light theme
+                "cost.low": "black",
+                "cost.medium": "black",
+                "cost.high": "black",
                 # Table styles
-                "table.border": "color(238)",  # Medium-dark gray for better visibility
-                "table.header": "bold color(17)",  # Bold deep blue
-                "table.row": "color(235)",  # Very dark gray
-                "table.row.alt": "color(238)",  # Slightly lighter gray
+                "table.border": "bright_black",
+                "table.header": "bold blue",
+                "table.row": "black",
+                "table.row.alt": "bright_black",
                 # Progress styles
-                "progress.bar.fill": "black",  # Pure black for light theme
-                "progress.bar": "black",  # Pure black for light theme (fallback)
-                "progress.bar.empty": "color(250)",  # Very light gray for light theme
-                "progress.percentage": "bold color(235)",  # Bold very dark gray
+                "progress.bar.fill": "black",
+                "progress.bar": "black",
+                "progress.bar.empty": "bright_black",
+                "progress.percentage": "bold black",
                 # Chart styles
-                "chart.bar": "color(17)",  # Deep blue for better visibility
-                "chart.line": "color(19)",  # Darker blue
-                "chart.point": "color(124)",  # Dark red
-                "chart.axis": "color(240)",  # Light gray
-                "chart.label": "color(235)",  # Very dark gray
+                "chart.bar": "blue",
+                "chart.line": "blue",
+                "chart.point": "red",
+                "chart.axis": "bright_black",
+                "chart.label": "black",
                 # Status styles
-                "status.active": "color(22)",  # Dark green
-                "status.inactive": "color(243)",  # Medium gray
-                "status.warning": "color(166)",  # Dark orange
-                "status.error": "color(124)",  # Dark red
+                "status.active": "green",
+                "status.inactive": "bright_black",
+                "status.warning": "red",
+                "status.error": "red",
                 # Time styles
-                "time.elapsed": "color(235)",  # Very dark gray
-                "time.remaining": "color(166)",  # Dark orange
-                "time.duration": "color(19)",  # Dark blue
+                "time.elapsed": "black",
+                "time.remaining": "red",
+                "time.duration": "blue",
                 # Model styles
-                "model.opus": "color(17)",  # Deep blue
-                "model.sonnet": "color(19)",  # Dark blue
-                "model.haiku": "color(22)",  # Dark green
-                "model.unknown": "color(243)",  # Medium gray
+                "model.opus": "blue",
+                "model.sonnet": "blue",
+                "model.haiku": "green",
+                "model.unknown": "bright_black",
                 # Plan styles
-                "plan.pro": "color(166)",  # Orange (premium)
-                "plan.max5": "color(19)",  # Dark blue
-                "plan.max20": "color(17)",  # Deep blue
-                "plan.custom": "color(22)",  # Dark green
+                "plan.pro": "red",
+                "plan.max5": "blue",
+                "plan.max20": "blue",
+                "plan.custom": "green",
             }
         )
 
@@ -131,55 +131,55 @@ class AdaptiveColorScheme:
         """Font colors optimized for dark terminal backgrounds (WCAG AA+ contrast)."""
         return Theme(
             {
-                "header": "color(117)",  # Light blue (#87d7ff) - 14:1 contrast
-                "info": "color(111)",  # Light cyan (#87afff) - 12:1 contrast
-                "warning": "color(214)",  # Orange (#ffaf00) - 11:1 contrast
-                "error": "color(203)",  # Light red (#ff5f5f) - 9:1 contrast
-                "success": "color(118)",  # Light green (#87ff00) - 15:1 contrast
-                "value": "color(253)",  # Very light gray (#dadada) - 17:1 contrast
-                "dim": "color(245)",  # Medium light gray (#8a8a8a) - 7:1 contrast
-                "separator": "color(248)",  # Light gray (#a8a8a8) - 9:1 contrast
-                "progress_bar": "white",  # Pure white for dark theme
-                "highlight": "color(203)",  # Light red (#ff5f5f) - matches error
+                "header": "bright_cyan",
+                "info": "cyan",
+                "warning": "bright_yellow",
+                "error": "bright_red",
+                "success": "bright_green",
+                "value": "bright_white",
+                "dim": "white",
+                "separator": "bright_black",
+                "progress_bar": "bright_white",
+                "highlight": "bright_red",
                 # Cost styles
-                "cost.low": "white",  # Pure white for dark theme
-                "cost.medium": "white",  # Pure white for dark theme
-                "cost.high": "white",  # Pure white for dark theme
+                "cost.low": "bright_white",
+                "cost.medium": "bright_white",
+                "cost.high": "bright_white",
                 # Table styles
-                "table.border": "color(248)",  # Light gray
-                "table.header": "bold color(117)",  # Bold light blue
-                "table.row": "color(253)",  # Very light gray
-                "table.row.alt": "color(251)",  # Slightly darker gray
+                "table.border": "bright_black",
+                "table.header": "bold bright_cyan",
+                "table.row": "bright_white",
+                "table.row.alt": "white",
                 # Progress styles
-                "progress.bar.fill": "white",  # Pure white for dark theme
-                "progress.bar": "white",  # Pure white for dark theme (fallback)
-                "progress.bar.empty": "color(238)",  # Darker gray for dark theme
-                "progress.percentage": "bold color(253)",  # Bold very light gray
+                "progress.bar.fill": "bright_white",
+                "progress.bar": "bright_white",
+                "progress.bar.empty": "bright_black",
+                "progress.percentage": "bold bright_white",
                 # Chart styles
-                "chart.bar": "color(111)",  # Light cyan
-                "chart.line": "color(117)",  # Light blue
-                "chart.point": "color(203)",  # Light red
-                "chart.axis": "color(248)",  # Light gray
-                "chart.label": "color(253)",  # Very light gray
+                "chart.bar": "cyan",
+                "chart.line": "bright_cyan",
+                "chart.point": "bright_red",
+                "chart.axis": "bright_black",
+                "chart.label": "bright_white",
                 # Status styles
-                "status.active": "color(118)",  # Light green
-                "status.inactive": "color(245)",  # Medium light gray
-                "status.warning": "color(214)",  # Orange
-                "status.error": "color(203)",  # Light red
+                "status.active": "bright_green",
+                "status.inactive": "white",
+                "status.warning": "bright_yellow",
+                "status.error": "bright_red",
                 # Time styles
-                "time.elapsed": "color(253)",  # Very light gray
-                "time.remaining": "color(214)",  # Orange
-                "time.duration": "color(111)",  # Light cyan
+                "time.elapsed": "bright_white",
+                "time.remaining": "bright_yellow",
+                "time.duration": "cyan",
                 # Model styles
-                "model.opus": "color(117)",  # Light blue
-                "model.sonnet": "color(111)",  # Light cyan
-                "model.haiku": "color(118)",  # Light green
-                "model.unknown": "color(245)",  # Medium light gray
+                "model.opus": "bright_cyan",
+                "model.sonnet": "cyan",
+                "model.haiku": "bright_green",
+                "model.unknown": "white",
                 # Plan styles
-                "plan.pro": "color(214)",  # Orange (premium)
-                "plan.max5": "color(111)",  # Light cyan
-                "plan.max20": "color(117)",  # Light blue
-                "plan.custom": "color(118)",  # Light green
+                "plan.pro": "bright_yellow",
+                "plan.max5": "cyan",
+                "plan.max20": "bright_cyan",
+                "plan.custom": "bright_green",
             }
         )
 
@@ -319,11 +319,9 @@ class BackgroundDetector:
         if os.environ.get("WT_SESSION"):
             return BackgroundType.DARK
 
-        # Check terminal program
+        # Check terminal program — coarse hint only, used after OSC 11 fails
         if "TERM_PROGRAM" in os.environ:
             term_program: str = os.environ["TERM_PROGRAM"]
-            if term_program == "Apple_Terminal":
-                return BackgroundType.LIGHT
             if term_program == "iTerm.app":
                 return BackgroundType.DARK
 

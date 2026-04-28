@@ -138,6 +138,11 @@ class Settings(BaseSettings):
         description="Display theme (light, dark, classic, auto)",
     )
 
+    path: Optional[str] = Field(
+        default=None,
+        description="Path to Claude data directory (e.g., ~/.claude-work/projects). Auto-discovered if not set.",
+    )
+
     custom_limit_tokens: Optional[int] = Field(
         default=None, gt=0, description="Token limit for custom plan"
     )
@@ -350,5 +355,6 @@ class Settings(BaseSettings):
         args.log_level = self.log_level
         args.log_file = str(self.log_file) if self.log_file else None
         args.version = self.version
+        args.path = self.path
 
         return args

@@ -24,27 +24,59 @@ class HeaderManager:
         self.separator_length: int = self.DEFAULT_SEPARATOR_LENGTH
 
     def create_header(
-        self, plan: str = "pro", timezone: str = "Europe/Warsaw"
+        self,
+        plan: str = "pro",
+        timezone: str = "Europe/Warsaw",
+        data_path: str | None = None,
+        account_info: dict | None = None,
     ) -> list[str]:
         """Create stylized header with sparkles.
 
         Args:
             plan: Current plan name
             timezone: Display timezone
+            data_path: Active Claude data directory path
+            account_info: Dict with display_name, email, org_name, seat_tier
 
         Returns:
             List of formatted header lines
         """
+        from pathlib import Path
+
+        from claude_monitor._version import get_version
+
         sparkles: str = self.DEFAULT_SPARKLES
-        title: str = "CLAUDE CODE USAGE MONITOR"
+        title: str = f"CLAUDE CODE USAGE MONITOR [white]v{get_version()}[/white]"
         separator: str = self.separator_char * self.separator_length
 
-        return [
+        if data_path:
+            p = Path(data_path)
+            short_path = str(p.parent).replace(str(Path.home()), "~")
+            meta = f"[ {plan.lower()} | {timezone.lower()} | {short_path} ]"
+        else:
+            meta = f"[ {plan.lower()} | {timezone.lower()} ]"
+
+        lines = [
             f"[header]{sparkles}[/] [header]{title}[/] [header]{sparkles}[/]",
             f"[table.border]{separator}[/]",
-            f"[ {plan.lower()} | {timezone.lower()} ]",
-            "",
+            meta,
         ]
+
+        if account_info:
+            parts = []
+            if account_info.get("display_name"):
+                parts.append(account_info["display_name"])
+            if account_info.get("email"):
+                parts.append(account_info["email"])
+            if account_info.get("org_name"):
+                parts.append(account_info["org_name"])
+            if account_info.get("seat_tier"):
+                parts.append(account_info["seat_tier"])
+            if parts:
+                lines.append(f"[dim][ {' · '.join(parts)} ][/]")
+
+        lines.append("")
+        return lines
 
 
 class ScreenManager:

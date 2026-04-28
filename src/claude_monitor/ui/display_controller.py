@@ -4,9 +4,10 @@ Orchestrates UI components and coordinates display updates.
 """
 
 import logging
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import pytz
 from rich.console import Console, Group, RenderableType
@@ -35,8 +36,12 @@ from claude_monitor.utils.time_utils import (
 class DisplayController:
     """Main controller for coordinating UI display operations."""
 
-    def __init__(self) -> None:
+    _SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
+    _SPARKLINE_MAX = 20
+
+    def __init__(self, data_path: Optional[str] = None) -> None:
         """Initialize display controller with components."""
+        self.data_path = data_path
         self.session_display = SessionDisplayComponent()
         self.loading_screen = LoadingScreenComponent()
         self.error_display = ErrorDisplayComponent()
@@ -45,9 +50,25 @@ class DisplayController:
         self.advanced_custom_display = None
         self.buffer_manager = ScreenBufferManager()
         self.session_calculator = SessionCalculator()
-        config_dir = Path.home() / ".claude" / "config"
+        config_dir = Path.home() / ".claude-monitor" / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
         self.notification_manager = NotificationManager(config_dir)
+        self._burn_rate_history: Deque[float] = deque(maxlen=self._SPARKLINE_MAX)
+        from claude_monitor.data.account import get_account_info
+        self.account_info = get_account_info(data_path)
+
+    def _build_sparkline(self) -> str:
+        """Render burn rate history as a sparkline using block characters."""
+        values = list(self._burn_rate_history)
+        if not values:
+            return ""
+        lo, hi = min(values), max(values)
+        n = len(self._SPARKLINE_CHARS) - 1
+        if hi == lo:
+            return self._SPARKLINE_CHARS[n // 2] * len(values)
+        return "".join(
+            self._SPARKLINE_CHARS[int((v - lo) / (hi - lo) * n)] for v in values
+        )
 
     def _extract_session_data(self, active_block: Dict[str, Any]) -> Dict[str, Any]:
         """Extract basic session data from active block."""
@@ -263,10 +284,14 @@ class DisplayController:
             )
             return self.buffer_manager.create_screen_renderable(screen_buffer)
 
-        # Add P90 limits to processed data for display
+        # Add P90 limits and instance path to processed data for display
         if Plans.is_valid_plan(args.plan):
             processed_data["cost_limit_p90"] = cost_limit_p90
             processed_data["messages_limit_p90"] = messages_limit_p90
+        processed_data["data_path"] = self.data_path
+        self._burn_rate_history.append(processed_data.get("burn_rate", 0.0))
+        processed_data["burn_rate_sparkline"] = self._build_sparkline()
+        processed_data["account_info"] = self.account_info
 
         try:
             screen_buffer = self.session_display.format_active_session_screen(
@@ -522,7 +547,7 @@ class LiveDisplayManager:
             console=display_console,
             refresh_per_second=refresh_per_second,
             auto_refresh=auto_refresh,
-            vertical_overflow="visible",  # Prevent screen scrolling
+            vertical_overflow="crop",
         )
 
         return self._live_context
