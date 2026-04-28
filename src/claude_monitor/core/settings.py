@@ -13,6 +13,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from claude_monitor import __version__
 
+# Mapping of --instance shortcut names to project paths
+_INSTANCE_PATH_MAP: Dict[str, str] = {
+    "work": "~/.claude-work/projects",
+    "personal": "~/.claude-personal/projects",
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -141,6 +147,11 @@ class Settings(BaseSettings):
     path: Optional[str] = Field(
         default=None,
         description="Path to Claude data directory (e.g., ~/.claude-work/projects). Auto-discovered if not set.",
+    )
+
+    instance: Optional[str] = Field(
+        default=None,
+        description="Named instance shortcut: 'work' (~/.claude-work/projects) or 'personal' (~/.claude-personal/projects). Ignored if --path is also set.",
     )
 
     custom_limit_tokens: Optional[int] = Field(
@@ -355,6 +366,19 @@ class Settings(BaseSettings):
         args.log_level = self.log_level
         args.log_file = str(self.log_file) if self.log_file else None
         args.version = self.version
-        args.path = self.path
+
+        # Resolve --instance to a path when --path is not explicitly set
+        resolved_path = self.path
+        if not resolved_path and self.instance:
+            instance_key = self.instance.lower()
+            if instance_key in _INSTANCE_PATH_MAP:
+                resolved_path = _INSTANCE_PATH_MAP[instance_key]
+            else:
+                logger.warning(
+                    "Unknown --instance value %r. Valid values: %s",
+                    self.instance,
+                    ", ".join(_INSTANCE_PATH_MAP),
+                )
+        args.path = resolved_path
 
         return args

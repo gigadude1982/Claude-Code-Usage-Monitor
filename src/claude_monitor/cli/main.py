@@ -411,6 +411,11 @@ def _run_table_view(
             print_themed(f"No usage data found for {view_mode} view", style="warning")
             return
 
+        # Read account info for the instance label
+        from claude_monitor.data.account import get_account_info
+
+        account_info = get_account_info(str(data_path))
+
         # Display the table
         controller.display_aggregated_view(
             data=aggregated_data,
@@ -418,6 +423,8 @@ def _run_table_view(
             timezone=args.timezone,
             plan=args.plan,
             token_limit=_get_initial_token_limit(args, data_path),
+            data_path=str(data_path),
+            account_info=account_info,
         )
 
         # Wait for user to press Ctrl+C

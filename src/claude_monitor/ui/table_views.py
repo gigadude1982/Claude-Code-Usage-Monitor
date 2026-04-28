@@ -5,6 +5,7 @@ in table format using Rich library.
 """
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from rich.align import Align
@@ -315,6 +316,29 @@ class TableViewsController:
         else:
             raise ValueError(f"Invalid view type: {view_type}")
 
+    def _build_instance_header(
+        self,
+        plan: str,
+        timezone: str,
+        data_path: Optional[str] = None,
+        account_info: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
+        """Build instance context header lines for table views.
+
+        Args:
+            plan: Plan type
+            timezone: Timezone string
+            data_path: Active Claude data directory path
+            account_info: Dict with display_name, email, org_name, seat_tier
+
+        Returns:
+            List of header lines (may be empty if no context to show)
+        """
+        from claude_monitor.ui.layouts import HeaderManager
+
+        header_manager = HeaderManager()
+        return header_manager.create_header(plan, timezone, data_path, account_info)
+
     def display_aggregated_view(
         self,
         data: List[Dict[str, Any]],
@@ -323,6 +347,8 @@ class TableViewsController:
         plan: str,
         token_limit: int,
         console: Optional[Console] = None,
+        data_path: Optional[str] = None,
+        account_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Display aggregated view with table and summary.
 
@@ -333,11 +359,15 @@ class TableViewsController:
             plan: Plan type
             token_limit: Token limit for the plan
             console: Optional Console instance
+            data_path: Active Claude data directory path (for instance label)
+            account_info: Account info dict (for account label)
         """
+        _console = console
+
         if not data:
             no_data_display = self.create_no_data_display(view_mode)
-            if console:
-                console.print(no_data_display)
+            if _console:
+                _console.print(no_data_display)
             else:
                 print(no_data_display)
             return
@@ -365,6 +395,11 @@ class TableViewsController:
         else:  # monthly
             period = f"{data[0]['month']} to {data[-1]['month']}" if data else "No data"
 
+        # Build instance/account header lines
+        header_lines = self._build_instance_header(
+            plan, timezone, data_path, account_info
+        )
+
         # Create and display summary panel
         summary_panel = self.create_summary_panel(view_mode, totals, period)
 
@@ -372,13 +407,17 @@ class TableViewsController:
         table = self.create_aggregate_table(data, totals, view_mode, timezone)
 
         # Display using console if provided
-        if console:
-            console.print(summary_panel)
-            console.print()
-            console.print(table)
+        if _console:
+            for line in header_lines:
+                _console.print(line)
+            _console.print(summary_panel)
+            _console.print()
+            _console.print(table)
         else:
             from rich import print as rprint
 
+            for line in header_lines:
+                rprint(line)
             rprint(summary_panel)
             rprint()
             rprint(table)
