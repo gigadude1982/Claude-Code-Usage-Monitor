@@ -52,7 +52,7 @@ class HeaderManager:
         if data_path:
             p = Path(data_path)
             short_path = str(p.parent).replace(str(Path.home()), "~")
-            meta = f"[ {plan.lower()} | {timezone.lower()} | {short_path} ]"
+            meta = f"[ {plan.lower()} | {timezone.lower()} | [magenta]{short_path}[/magenta] ]"
         else:
             meta = f"[ {plan.lower()} | {timezone.lower()} ]"
 
