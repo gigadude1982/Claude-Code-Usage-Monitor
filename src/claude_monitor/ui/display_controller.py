@@ -35,8 +35,9 @@ from claude_monitor.utils.time_utils import (
 class DisplayController:
     """Main controller for coordinating UI display operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, data_path: Optional[str] = None) -> None:
         """Initialize display controller with components."""
+        self.data_path = data_path
         self.session_display = SessionDisplayComponent()
         self.loading_screen = LoadingScreenComponent()
         self.error_display = ErrorDisplayComponent()
@@ -45,7 +46,7 @@ class DisplayController:
         self.advanced_custom_display = None
         self.buffer_manager = ScreenBufferManager()
         self.session_calculator = SessionCalculator()
-        config_dir = Path.home() / ".claude" / "config"
+        config_dir = Path.home() / ".claude-monitor" / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
         self.notification_manager = NotificationManager(config_dir)
 
@@ -263,10 +264,11 @@ class DisplayController:
             )
             return self.buffer_manager.create_screen_renderable(screen_buffer)
 
-        # Add P90 limits to processed data for display
+        # Add P90 limits and instance path to processed data for display
         if Plans.is_valid_plan(args.plan):
             processed_data["cost_limit_p90"] = cost_limit_p90
             processed_data["messages_limit_p90"] = messages_limit_p90
+        processed_data["data_path"] = self.data_path
 
         try:
             screen_buffer = self.session_display.format_active_session_screen(
@@ -522,7 +524,7 @@ class LiveDisplayManager:
             console=display_console,
             refresh_per_second=refresh_per_second,
             auto_refresh=auto_refresh,
-            vertical_overflow="visible",  # Prevent screen scrolling
+            vertical_overflow="crop",
         )
 
         return self._live_context

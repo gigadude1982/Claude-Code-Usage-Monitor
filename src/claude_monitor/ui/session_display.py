@@ -183,7 +183,9 @@ class SessionDisplayComponent:
         screen_buffer = []
 
         header_manager = HeaderManager()
-        screen_buffer.extend(header_manager.create_header(plan, timezone))
+        screen_buffer.extend(
+            header_manager.create_header(plan, timezone, kwargs.get("data_path"))
+        )
 
         if plan in ["custom", "pro", "max5", "max20"]:
             from claude_monitor.core.plans import DEFAULT_COST_LIMIT

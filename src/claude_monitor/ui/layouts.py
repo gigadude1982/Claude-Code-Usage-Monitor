@@ -24,25 +24,39 @@ class HeaderManager:
         self.separator_length: int = self.DEFAULT_SEPARATOR_LENGTH
 
     def create_header(
-        self, plan: str = "pro", timezone: str = "Europe/Warsaw"
+        self,
+        plan: str = "pro",
+        timezone: str = "Europe/Warsaw",
+        data_path: str | None = None,
     ) -> list[str]:
         """Create stylized header with sparkles.
 
         Args:
             plan: Current plan name
             timezone: Display timezone
+            data_path: Active Claude data directory path
 
         Returns:
             List of formatted header lines
         """
+        from pathlib import Path
+
         sparkles: str = self.DEFAULT_SPARKLES
         title: str = "CLAUDE CODE USAGE MONITOR"
         separator: str = self.separator_char * self.separator_length
 
+        if data_path:
+            # Show the parent dir (e.g. ~/.claude-work) rather than the full projects path
+            p = Path(data_path)
+            short_path = str(p.parent).replace(str(Path.home()), "~")
+            meta = f"[ {plan.lower()} | {timezone.lower()} | {short_path} ]"
+        else:
+            meta = f"[ {plan.lower()} | {timezone.lower()} ]"
+
         return [
             f"[header]{sparkles}[/] [header]{title}[/] [header]{sparkles}[/]",
             f"[table.border]{separator}[/]",
-            f"[ {plan.lower()} | {timezone.lower()} ]",
+            meta,
             "",
         ]
 

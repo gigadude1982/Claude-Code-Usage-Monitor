@@ -38,7 +38,7 @@ def load_usage_entries(
     """Load and convert JSONL files to UsageEntry objects.
 
     Args:
-        data_path: Path to Claude data directory (defaults to ~/.claude/projects)
+        data_path: Path to Claude data directory (defaults to ~/.claude-work/projects)
         hours_back: Only include entries from last N hours
         mode: Cost calculation mode
         include_raw: Whether to return raw JSON data alongside entries
@@ -46,7 +46,7 @@ def load_usage_entries(
     Returns:
         Tuple of (usage_entries, raw_data) where raw_data is None unless include_raw=True
     """
-    data_path = Path(data_path if data_path else "~/.claude/projects").expanduser()
+    data_path = Path(data_path if data_path else "~/.claude-work/projects").expanduser()
     timezone_handler = TimezoneHandler()
     pricing_calculator = PricingCalculator()
 
@@ -93,7 +93,7 @@ def load_all_raw_entries(data_path: Optional[str] = None) -> List[Dict[str, Any]
     Returns:
         List of raw JSON dictionaries
     """
-    data_path = Path(data_path if data_path else "~/.claude/projects").expanduser()
+    data_path = Path(data_path if data_path else "~/.claude-work/projects").expanduser()
     jsonl_files = _find_jsonl_files(data_path)
 
     all_raw_entries: List[Dict[str, Any]] = []

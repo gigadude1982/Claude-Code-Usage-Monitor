@@ -43,7 +43,12 @@ SessionChangeCallback = Callable[[str, str, Optional[Dict[str, Any]]], None]
 
 def get_standard_claude_paths() -> List[str]:
     """Get list of standard Claude data directory paths to check."""
-    return ["~/.claude/projects", "~/.config/claude/projects"]
+    return [
+        "~/.claude-work/projects",
+        "~/.claude-personal/projects",
+        "~/.claude/projects",
+        "~/.config/claude/projects",
+    ]
 
 
 def discover_claude_data_paths(custom_paths: Optional[List[str]] = None) -> List[Path]:
@@ -120,7 +125,10 @@ def _run_monitoring(args: argparse.Namespace) -> None:
     live_display_active: bool = False
 
     try:
-        data_paths: List[Path] = discover_claude_data_paths()
+        custom_path = getattr(args, "path", None)
+        data_paths: List[Path] = discover_claude_data_paths(
+            [custom_path] if custom_path else None
+        )
         if not data_paths:
             print_themed("No Claude data directory found", style="error")
             return
@@ -136,7 +144,7 @@ def _run_monitoring(args: argparse.Namespace) -> None:
 
         token_limit: int = _get_initial_token_limit(args, str(data_path))
 
-        display_controller = DisplayController()
+        display_controller = DisplayController(data_path=str(data_path))
         display_controller.live_manager._console = console
 
         refresh_per_second: float = getattr(args, "refresh_per_second", 0.75)

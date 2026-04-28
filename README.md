@@ -195,6 +195,7 @@ claude-monitor --help
 | --refresh-rate | int | 10 | Data refresh rate in seconds (1-60) |
 | --refresh-per-second | float | 0.75 | Display refresh rate in Hz (0.1-20.0) |
 | --reset-hour | int | None | Daily reset hour (0-23) |
+| --path | path | None | Path to Claude data directory (e.g., ~/.claude-work/projects) |
 | --log-level | string | INFO | Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL |
 | --log-file | path | None | Log file path |
 | --debug | flag | False | Enable debug logging |
@@ -357,6 +358,26 @@ claude-monitor --timezone UTC
 # Use London time
 claude-monitor --timezone Europe/London
 ```
+
+#### Multiple Claude Instances
+
+If you run separate Claude CLI instances (e.g., one for work and one for personal use), point the monitor at the right data directory with `--path`:
+
+```bash
+# Work instance (data stored in ~/.claude-work)
+claude-monitor --path ~/.claude-work/projects
+
+# Personal instance (data stored in ~/.claude-personal)
+claude-monitor --path ~/.claude-personal/projects
+```
+
+Without `--path`, the monitor auto-discovers data directories in this order:
+1. `~/.claude-work/projects`
+2. `~/.claude-personal/projects`
+3. `~/.claude/projects`
+4. `~/.config/claude/projects`
+
+The first directory that exists is used. Use `--path` to override this when you want to target a specific instance explicitly.
 
 #### Logging and Debugging
 
