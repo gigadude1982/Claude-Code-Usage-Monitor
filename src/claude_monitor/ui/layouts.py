@@ -28,6 +28,7 @@ class HeaderManager:
         plan: str = "pro",
         timezone: str = "Europe/Warsaw",
         data_path: str | None = None,
+        account_info: dict | None = None,
     ) -> list[str]:
         """Create stylized header with sparkles.
 
@@ -35,6 +36,7 @@ class HeaderManager:
             plan: Current plan name
             timezone: Display timezone
             data_path: Active Claude data directory path
+            account_info: Dict with display_name, email, org_name, seat_tier
 
         Returns:
             List of formatted header lines
@@ -46,19 +48,33 @@ class HeaderManager:
         separator: str = self.separator_char * self.separator_length
 
         if data_path:
-            # Show the parent dir (e.g. ~/.claude-work) rather than the full projects path
             p = Path(data_path)
             short_path = str(p.parent).replace(str(Path.home()), "~")
             meta = f"[ {plan.lower()} | {timezone.lower()} | {short_path} ]"
         else:
             meta = f"[ {plan.lower()} | {timezone.lower()} ]"
 
-        return [
+        lines = [
             f"[header]{sparkles}[/] [header]{title}[/] [header]{sparkles}[/]",
             f"[table.border]{separator}[/]",
             meta,
-            "",
         ]
+
+        if account_info:
+            parts = []
+            if account_info.get("display_name"):
+                parts.append(account_info["display_name"])
+            if account_info.get("email"):
+                parts.append(account_info["email"])
+            if account_info.get("org_name"):
+                parts.append(account_info["org_name"])
+            if account_info.get("seat_tier"):
+                parts.append(account_info["seat_tier"])
+            if parts:
+                lines.append(f"[dim][ {' · '.join(parts)} ][/]")
+
+        lines.append("")
+        return lines
 
 
 class ScreenManager:

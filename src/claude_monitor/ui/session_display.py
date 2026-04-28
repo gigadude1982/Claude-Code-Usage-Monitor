@@ -87,12 +87,15 @@ class SessionDisplayComponent:
 
         if percentage >= 100:
             filled_bar = progress_bar._render_bar(50, filled_style=bar_style)
+            overflow = percentage - 100.0
+            overflow_str = f" [dim]+{overflow:.1f}%[/]" if overflow > 0 else ""
         else:
             filled_bar = progress_bar._render_bar(
                 filled, filled_style=bar_style, empty_style="table.border"
             )
+            overflow_str = ""
 
-        return f"{color} [{filled_bar}]"
+        return f"{color} [{filled_bar}]{overflow_str}"
 
     def format_active_session_screen_v2(self, data: SessionDisplayData) -> list[str]:
         """Format complete active session screen using data class.
@@ -184,7 +187,12 @@ class SessionDisplayComponent:
 
         header_manager = HeaderManager()
         screen_buffer.extend(
-            header_manager.create_header(plan, timezone, kwargs.get("data_path"))
+            header_manager.create_header(
+                plan,
+                timezone,
+                kwargs.get("data_path"),
+                kwargs.get("account_info"),
+            )
         )
 
         if plan in ["custom", "pro", "max5", "max20"]:
@@ -254,8 +262,10 @@ class SessionDisplayComponent:
             screen_buffer.append(f"[separator]{'─' * 60}[/]")
 
             velocity_emoji = VelocityIndicator.get_velocity_emoji(burn_rate)
+            sparkline = kwargs.get("burn_rate_sparkline", "")
+            sparkline_str = f" [dim]{sparkline}[/]" if sparkline else ""
             screen_buffer.append(
-                f"🔥 [value]Burn Rate:[/]              [warning]{burn_rate:.1f}[/] [dim]tokens/min[/] {velocity_emoji}"
+                f"🔥 [value]Burn Rate:[/]              [warning]{burn_rate:.1f}[/] [dim]tokens/min[/] {velocity_emoji}{sparkline_str}"
             )
 
             cost_per_min = (

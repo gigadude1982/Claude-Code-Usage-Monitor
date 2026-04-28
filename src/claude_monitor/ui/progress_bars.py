@@ -271,63 +271,57 @@ class ModelUsageBar(BaseProgressBar):
             empty_bar = self._render_bar(0, empty_style="table.border")
             return f"🤖 [{empty_bar}] Empty model stats"
 
-        sonnet_tokens = 0
-        opus_tokens = 0
-        other_tokens = 0
+        buckets: dict[str, int] = {"sonnet": 0, "opus": 0, "haiku": 0, "other": 0}
+        # style and label per bucket
+        bucket_style = {
+            "sonnet": "info",
+            "opus": "warning",
+            "haiku": "success",
+            "other": "dim",
+        }
 
         for model_name, stats in per_model_stats.items():
             model_tokens = stats.get("input_tokens", 0) + stats.get("output_tokens", 0)
-
-            if "sonnet" in model_name.lower():
-                sonnet_tokens += model_tokens
-            elif "opus" in model_name.lower():
-                opus_tokens += model_tokens
+            lower = model_name.lower()
+            if "sonnet" in lower:
+                buckets["sonnet"] += model_tokens
+            elif "opus" in lower:
+                buckets["opus"] += model_tokens
+            elif "haiku" in lower:
+                buckets["haiku"] += model_tokens
             else:
-                other_tokens += model_tokens
+                buckets["other"] += model_tokens
 
-        total_tokens = sonnet_tokens + opus_tokens + other_tokens
-
+        total_tokens = sum(buckets.values())
         if total_tokens == 0:
             empty_bar = self._render_bar(0, empty_style="table.border")
             return f"🤖 [{empty_bar}] No tokens used"
 
-        sonnet_percentage = percentage(sonnet_tokens, total_tokens)
-        opus_percentage = percentage(opus_tokens, total_tokens)
-        other_percentage = percentage(other_tokens, total_tokens)
-
-        sonnet_filled = int(self.width * sonnet_tokens / total_tokens)
-        opus_filled = int(self.width * opus_tokens / total_tokens)
-
-        total_filled = sonnet_filled + opus_filled
-        if total_filled < self.width:
-            if sonnet_tokens >= opus_tokens:
-                sonnet_filled += self.width - total_filled
-            else:
-                opus_filled += self.width - total_filled
-        elif total_filled > self.width:
-            if sonnet_tokens >= opus_tokens:
-                sonnet_filled -= total_filled - self.width
-            else:
-                opus_filled -= total_filled - self.width
-
-        sonnet_bar = "█" * sonnet_filled
-        opus_bar = "█" * opus_filled
+        # Calculate filled width per bucket, distribute any rounding remainder to largest
+        filled: dict[str, int] = {
+            k: int(self.width * v / total_tokens) for k, v in buckets.items()
+        }
+        remainder = self.width - sum(filled.values())
+        if remainder:
+            largest = max(buckets, key=lambda k: buckets[k])
+            filled[largest] += remainder
 
         bar_segments = []
-        if sonnet_filled > 0:
-            bar_segments.append(f"[info]{sonnet_bar}[/]")
-        if opus_filled > 0:
-            bar_segments.append(f"[warning]{opus_bar}[/]")
+        for key in ("sonnet", "opus", "haiku", "other"):
+            if filled[key] > 0:
+                bar_segments.append(
+                    f"[{bucket_style[key]}]{'█' * filled[key]}[/]"
+                )
 
         bar_display = "".join(bar_segments)
 
-        if opus_tokens > 0 and sonnet_tokens > 0:
-            summary = f"Sonnet {sonnet_percentage:.1f}% | Opus {opus_percentage:.1f}%"
-        elif sonnet_tokens > 0:
-            summary = f"Sonnet {sonnet_percentage:.1f}%"
-        elif opus_tokens > 0:
-            summary = f"Opus {opus_percentage:.1f}%"
-        else:
-            summary = f"Other {other_percentage:.1f}%"
+        # Build compact legend for non-zero buckets
+        labels = {"sonnet": "Sonnet", "opus": "Opus", "haiku": "Haiku", "other": "Other"}
+        legend_parts = [
+            f"{labels[k]} {percentage(buckets[k], total_tokens):.1f}%"
+            for k in ("sonnet", "opus", "haiku", "other")
+            if buckets[k] > 0
+        ]
+        summary = " | ".join(legend_parts)
 
-        return f"🤖 [{bar_display}] {summary}"
+        return f"[{bar_display}] {summary}"
