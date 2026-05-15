@@ -20,11 +20,17 @@ def get_account_info(data_path: Optional[str] = None) -> Dict[str, Any]:
     """
     result = {"display_name": "", "email": "", "org_name": "", "seat_tier": ""}
 
-    if not data_path:
-        return result
+    base = Path(data_path).expanduser() if data_path else Path.home()
 
-    claude_json = Path(data_path).expanduser().parent / ".claude.json"
-    if not claude_json.exists():
+    # Check candidate locations: one level up (custom instances), two levels up
+    # (standard ~/.claude/projects), and home directory fallback.
+    candidates = [
+        base.parent / ".claude.json",
+        base.parent.parent / ".claude.json",
+        Path.home() / ".claude.json",
+    ]
+    claude_json = next((p for p in candidates if p.exists()), None)
+    if claude_json is None:
         return result
 
     try:
