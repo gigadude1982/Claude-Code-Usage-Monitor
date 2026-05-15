@@ -37,7 +37,7 @@ class DisplayController:
     """Main controller for coordinating UI display operations."""
 
     _SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
-    _SPARKLINE_MAX = 20
+    _SPARKLINE_MAX = 60
 
     def __init__(self, data_path: Optional[str] = None) -> None:
         """Initialize display controller with components."""
@@ -54,6 +54,7 @@ class DisplayController:
         config_dir.mkdir(parents=True, exist_ok=True)
         self.notification_manager = NotificationManager(config_dir)
         self._burn_rate_history: Deque[float] = deque(maxlen=self._SPARKLINE_MAX)
+        self._notified_thresholds: set = set()
         from claude_monitor.data.account import get_account_info
         self.account_info = get_account_info(data_path)
 
@@ -69,6 +70,92 @@ class DisplayController:
         return "".join(
             self._SPARKLINE_CHARS[int((v - lo) / (hi - lo) * n)] for v in values
         )
+
+    def _calculate_model_trends(
+        self,
+        blocks: List[Dict[str, Any]],
+        current_dist: Dict[str, float],
+    ) -> Dict[str, str]:
+        """Compare current session model % to 7-day historical average."""
+        from datetime import timedelta
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        tz_handler = TimezoneHandler()
+        buckets: Dict[str, int] = {"sonnet": 0, "opus": 0, "haiku": 0, "other": 0}
+
+        for block in blocks:
+            if block.get("isGap") or block.get("isActive"):
+                continue
+            start_str = block.get("startTime", "")
+            if start_str:
+                try:
+                    start = tz_handler.ensure_utc(tz_handler.parse_timestamp(start_str))
+                    if start < cutoff:
+                        continue
+                except Exception:
+                    continue
+            for model, stats in block.get("perModelStats", {}).items():
+                if not isinstance(stats, dict):
+                    continue
+                tokens = stats.get("input_tokens", 0) + stats.get("output_tokens", 0)
+                lower = model.lower()
+                if "sonnet" in lower:
+                    buckets["sonnet"] += tokens
+                elif "opus" in lower:
+                    buckets["opus"] += tokens
+                elif "haiku" in lower:
+                    buckets["haiku"] += tokens
+                else:
+                    buckets["other"] += tokens
+
+        total = sum(buckets.values())
+        if total == 0:
+            return {}
+
+        hist_dist = {k: v / total * 100 for k, v in buckets.items()}
+        trends: Dict[str, str] = {}
+        for model in ("sonnet", "opus", "haiku", "other"):
+            diff = current_dist.get(model, 0) - hist_dist.get(model, 0)
+            if diff > 5:
+                trends[model] = "[green]↑[/]"
+            elif diff < -5:
+                trends[model] = "[red]↓[/]"
+            else:
+                trends[model] = "[dim]→[/]"
+        return trends
+
+    def _send_desktop_toast(self, title: str, message: str) -> None:
+        """Send a desktop OS notification via plyer (silent fallback if unavailable)."""
+        try:
+            from plyer import notification  # type: ignore[import]
+            notification.notify(
+                title=title,
+                message=message,
+                app_name="Claude Monitor",
+                timeout=8,
+            )
+        except Exception:
+            pass
+
+    def _check_threshold_notifications(
+        self, token_pct: float, cost_pct: float
+    ) -> None:
+        """Fire desktop toasts when usage crosses 75 / 90 / 100% thresholds."""
+        for level, label in ((75, "Warning"), (90, "Critical"), (100, "Limit Hit")):
+            tok_key = f"toast_token_{level}"
+            if token_pct >= level and tok_key not in self._notified_thresholds:
+                self._notified_thresholds.add(tok_key)
+                self._send_desktop_toast(
+                    f"Claude Token Usage — {label}",
+                    f"Token usage reached {level}% ({token_pct:.1f}%)",
+                )
+            cost_key = f"toast_cost_{level}"
+            if cost_pct >= level and cost_key not in self._notified_thresholds:
+                self._notified_thresholds.add(cost_key)
+                self._send_desktop_toast(
+                    f"Claude Cost — {label}",
+                    f"Cost usage reached {level}% ({cost_pct:.1f}%)",
+                )
 
     def _extract_session_data(self, active_block: Dict[str, Any]) -> Dict[str, Any]:
         """Extract basic session data from active block."""
@@ -254,6 +341,7 @@ class DisplayController:
                 args,
                 data_path=self.data_path,
                 account_info=self.account_info,
+                all_blocks=data.get("blocks", []),
             )
             return self.buffer_manager.create_screen_renderable(screen_buffer)
 
@@ -297,7 +385,18 @@ class DisplayController:
         processed_data["data_path"] = self.data_path
         self._burn_rate_history.append(processed_data.get("burn_rate", 0.0))
         processed_data["burn_rate_sparkline"] = self._build_sparkline()
+        processed_data["burn_rate_history"] = list(self._burn_rate_history)
+        processed_data["all_blocks"] = data.get("blocks", [])
         processed_data["account_info"] = self.account_info
+
+        # Desktop threshold notifications (75 / 90 / 100%)
+        if Plans.is_valid_plan(args.plan) and cost_limit_p90 and cost_limit_p90 > 0:
+            _cost_pct = percentage(
+                processed_data.get("session_cost", 0), cost_limit_p90
+            )
+            self._check_threshold_notifications(
+                processed_data.get("usage_percentage", 0), _cost_pct
+            )
 
         try:
             screen_buffer = self.session_display.format_active_session_screen(
@@ -412,6 +511,9 @@ class DisplayController:
             "session_cost": session_data["session_cost"],
             "per_model_stats": session_data["raw_per_model_stats"],
             "model_distribution": model_distribution,
+            "model_trends": self._calculate_model_trends(
+                data.get("blocks", []), model_distribution
+            ),
             "sent_messages": session_data["sent_messages"],
             "entries": session_data["entries"],
             "predicted_end_str": display_times["predicted_end_str"],

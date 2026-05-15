@@ -253,26 +253,30 @@ class TimeProgressBar(BaseProgressBar):
 class ModelUsageBar(BaseProgressBar):
     """Model usage progress bar showing Sonnet vs Opus distribution."""
 
-    def render(self, per_model_stats: dict[str, Any]) -> str:
+    def render(
+        self,
+        per_model_stats: dict[str, Any],
+        trends: dict[str, str] | None = None,
+    ) -> str:
         """Render model usage progress bar.
 
         Args:
             per_model_stats: Dictionary of model statistics
+            trends: Optional dict of model → trend arrow markup (↑/↓/→)
 
         Returns:
             Formatted model usage bar string
         """
         if not per_model_stats:
             empty_bar = self._render_bar(0, empty_style="table.border")
-            return f"🤖 [{empty_bar}] No model data"
+            return f"[{empty_bar}] No model data"
 
         model_names = list(per_model_stats.keys())
         if not model_names:
             empty_bar = self._render_bar(0, empty_style="table.border")
-            return f"🤖 [{empty_bar}] Empty model stats"
+            return f"[{empty_bar}] Empty model stats"
 
         buckets: dict[str, int] = {"sonnet": 0, "opus": 0, "haiku": 0, "other": 0}
-        # style and label per bucket
         bucket_style = {
             "sonnet": "info",
             "opus": "warning",
@@ -295,7 +299,7 @@ class ModelUsageBar(BaseProgressBar):
         total_tokens = sum(buckets.values())
         if total_tokens == 0:
             empty_bar = self._render_bar(0, empty_style="table.border")
-            return f"🤖 [{empty_bar}] No tokens used"
+            return f"[{empty_bar}] No tokens used"
 
         # Calculate filled width per bucket, distribute any rounding remainder to largest
         filled: dict[str, int] = {
@@ -309,19 +313,18 @@ class ModelUsageBar(BaseProgressBar):
         bar_segments = []
         for key in ("sonnet", "opus", "haiku", "other"):
             if filled[key] > 0:
-                bar_segments.append(
-                    f"[{bucket_style[key]}]{'█' * filled[key]}[/]"
-                )
+                bar_segments.append(f"[{bucket_style[key]}]{'█' * filled[key]}[/]")
 
         bar_display = "".join(bar_segments)
 
-        # Build compact legend for non-zero buckets
+        # Build compact legend with optional trend arrows
         labels = {"sonnet": "Sonnet", "opus": "Opus", "haiku": "Haiku", "other": "Other"}
-        legend_parts = [
-            f"{labels[k]} {percentage(buckets[k], total_tokens):.1f}%"
-            for k in ("sonnet", "opus", "haiku", "other")
-            if buckets[k] > 0
-        ]
+        legend_parts = []
+        for k in ("sonnet", "opus", "haiku", "other"):
+            if buckets[k] > 0:
+                pct = percentage(buckets[k], total_tokens)
+                arrow = f" {trends[k]}" if trends and k in trends else ""
+                legend_parts.append(f"{labels[k]} {pct:.1f}%{arrow}")
         summary = " | ".join(legend_parts)
 
         return f"[{bar_display}] {summary}"

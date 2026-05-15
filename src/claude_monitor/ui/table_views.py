@@ -85,16 +85,35 @@ class TableViewsController:
 
         return table
 
+    @staticmethod
+    def _heat_color(value: float, min_val: float, max_val: float) -> str:
+        """Return a Rich colour name on a blue→cyan→green→yellow→red heat gradient."""
+        if max_val <= min_val:
+            return "green"
+        frac = (value - min_val) / (max_val - min_val)
+        if frac < 0.25:
+            return "bright_blue"
+        elif frac < 0.5:
+            return "cyan"
+        elif frac < 0.75:
+            return "yellow"
+        else:
+            return "red"
+
     def _add_data_rows(
         self, table: Table, data_list: List[Dict[str, Any]], period_key: str
     ) -> None:
-        """Add data rows to the table.
+        """Add data rows to the table with heat-gradient cost colouring.
 
         Args:
             table: Table to add rows to
             data_list: List of data dictionaries
             period_key: Key to use for period column ('date' or 'month')
         """
+        costs = [d["total_cost"] for d in data_list]
+        min_cost = min(costs) if costs else 0.0
+        max_cost = max(costs) if costs else 0.0
+
         for data in data_list:
             models_text = self._format_models(data["models_used"])
             total_tokens = (
@@ -103,6 +122,8 @@ class TableViewsController:
                 + data["cache_creation_tokens"]
                 + data["cache_read_tokens"]
             )
+            cost_color = self._heat_color(data["total_cost"], min_cost, max_cost)
+            cost_cell = Text(format_currency(data["total_cost"]), style=cost_color)
 
             table.add_row(
                 data[period_key],
@@ -112,7 +133,7 @@ class TableViewsController:
                 format_number(data["cache_creation_tokens"]),
                 format_number(data["cache_read_tokens"]),
                 format_number(total_tokens),
-                format_currency(data["total_cost"]),
+                cost_cell,
             )
 
     def _add_totals_row(self, table: Table, totals: Dict[str, Any]) -> None:
