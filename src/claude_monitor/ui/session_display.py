@@ -4,8 +4,8 @@ Handles formatting of active session screens and session data display.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime, timedelta
+from typing import Any, List, Optional
 
 import pytz
 
@@ -17,6 +17,7 @@ from claude_monitor.ui.progress_bars import (
     TokenProgressBar,
 )
 from claude_monitor.utils.time_utils import (
+    TimezoneHandler,
     format_display_time,
     get_time_format_preference,
     percentage,
@@ -61,16 +62,24 @@ class SessionDisplayComponent:
         self.time_progress = TimeProgressBar()
         self.model_usage = ModelUsageBar()
 
-    def _render_wide_progress_bar(self, percentage: float) -> str:
-        """Render a wide progress bar (50 chars) using centralized progress bar logic.
+    def _render_wide_progress_bar(
+        self,
+        percentage: float,
+        projection_pct: Optional[float] = None,
+    ) -> str:
+        """Render a wide progress bar (50 chars) with an optional projected-depletion marker.
 
         Args:
-            percentage: Progress percentage (can be > 100)
+            percentage: Current usage percentage (can be > 100).
+            projection_pct: Optional projected percentage at session end. When provided
+                and > current, a ◆ marker is drawn at that position on the empty portion.
 
         Returns:
-            Formatted progress bar string
+            Formatted progress bar string with Rich markup.
         """
         from claude_monitor.terminal.themes import get_cost_style
+
+        width = 50
 
         if percentage < 50:
             color = "🟢"
@@ -79,23 +88,180 @@ class SessionDisplayComponent:
         else:
             color = "🔴"
 
-        progress_bar = TokenProgressBar(width=50)
         bar_style = get_cost_style(percentage)
-
-        capped_percentage = min(percentage, 100.0)
-        filled = progress_bar._calculate_filled_segments(capped_percentage, 100.0)
+        capped = min(percentage, 100.0)
+        filled = int(width * capped / 100)
 
         if percentage >= 100:
-            filled_bar = progress_bar._render_bar(50, filled_style=bar_style)
             overflow = percentage - 100.0
             overflow_str = f" [dim]+{overflow:.1f}%[/]" if overflow > 0 else ""
-        else:
-            filled_bar = progress_bar._render_bar(
-                filled, filled_style=bar_style, empty_style="table.border"
-            )
-            overflow_str = ""
+            return f"{color} [[{bar_style}]{'█' * width}[/]]{overflow_str}"
 
-        return f"{color} [{filled_bar}]{overflow_str}"
+        # Determine marker position (only in the empty region ahead of current fill)
+        marker_pos = -1
+        if projection_pct is not None and projection_pct > percentage:
+            mp = int(width * min(projection_pct, 100.0) / 100)
+            if mp > filled and mp < width:
+                marker_pos = mp
+
+        # Build bar section by section for efficiency
+        bar_parts: list[str] = []
+        if filled > 0:
+            bar_parts.append(f"[{bar_style}]{'█' * filled}[/]")
+
+        if marker_pos > filled:
+            before = marker_pos - filled
+            after = width - marker_pos - 1
+            if before > 0:
+                bar_parts.append(f"[table.border]{'░' * before}[/]")
+            bar_parts.append("[warning]◆[/]")
+            if after > 0:
+                bar_parts.append(f"[table.border]{'░' * after}[/]")
+        else:
+            empty = width - filled
+            if empty > 0:
+                bar_parts.append(f"[table.border]{'░' * empty}[/]")
+
+        return f"{color} [{''.join(bar_parts)}]"
+
+    def _render_sparkline_panel(self, values: List[float]) -> Any:
+        """Return a Rich Panel containing a colour-graded burn-rate sparkline.
+
+        Returns None when fewer than 2 samples are available.
+        """
+        from rich.panel import Panel
+        from rich.text import Text
+
+        if len(values) < 2:
+            return None
+
+        chars = "▁▂▃▄▅▆▇█"
+        lo, hi = min(values), max(values)
+        avg = sum(values) / len(values)
+        n = len(chars) - 1
+
+        text = Text()
+        for v in values:
+            frac = (v - lo) / (hi - lo) if hi > lo else 0.5
+            ch = chars[int(frac * n)]
+            if frac < 0.4:
+                text.append(ch, style="green")
+            elif frac < 0.75:
+                text.append(ch, style="yellow")
+            else:
+                text.append(ch, style="red")
+
+        text.append(
+            f"\n  min: {lo:.0f}  avg: {avg:.0f}  max: {hi:.0f} tokens/min",
+            style="dim",
+        )
+
+        return Panel(
+            text,
+            title="[dim]Burn Rate History[/]",
+            border_style="dim",
+            padding=(0, 1),
+        )
+
+    def _render_cache_efficiency(
+        self, per_model_stats: dict, session_cost: float
+    ) -> str:
+        """Render a cache-efficiency progress bar.
+
+        Efficiency = cache_read_tokens / total_tokens (higher is better / cheaper).
+        Returns an empty string when there is no data.
+        """
+        total_in = total_out = total_cache = 0
+        for stats in per_model_stats.values():
+            if not isinstance(stats, dict):
+                continue
+            total_in += stats.get("input_tokens", 0)
+            total_out += stats.get("output_tokens", 0)
+            total_cache += stats.get("cache_read_tokens", 0)
+
+        total = total_in + total_out + total_cache
+        if total == 0:
+            return ""
+
+        cache_pct = total_cache / total * 100
+
+        bar = self._render_wide_progress_bar(cache_pct)
+        return (
+            f"⚡ [value]Cache Efficiency:[/]  {bar} {cache_pct:4.1f}%"
+            f"    [dim]{total_cache:,} cached / {total:,} total tokens[/]"
+        )
+
+    def _render_session_timeline(
+        self,
+        blocks: List[dict],
+        args: Any = None,
+    ) -> List[str]:
+        """Render today's session activity as a 48-segment (30 min each) timeline.
+
+        Returns a list of lines (may be empty if no sessions today).
+        """
+        if not blocks:
+            return []
+
+        tz = pytz.UTC
+        if args and hasattr(args, "timezone"):
+            try:
+                tz = pytz.timezone(args.timezone)
+            except Exception:
+                pass
+
+        now = datetime.now(tz)
+        today = now.date()
+        th = TimezoneHandler()
+
+        sessions: List[tuple] = []
+        for block in blocks:
+            if block.get("isGap"):
+                continue
+            start_str = block.get("startTime")
+            if not start_str:
+                continue
+            try:
+                start = th.parse_timestamp(start_str).astimezone(tz)
+                if start.date() != today:
+                    continue
+                end_str = block.get("endTime")
+                if end_str:
+                    end = th.parse_timestamp(end_str).astimezone(tz)
+                elif block.get("isActive"):
+                    end = now
+                else:
+                    end = start + timedelta(hours=5)
+                sessions.append((start, min(end, now)))
+            except Exception:
+                continue
+
+        if not sessions:
+            return []
+
+        segments = 48  # 30 min each across 24 h
+        timeline = [False] * segments
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        for start, end in sessions:
+            seg_s = max(0, int((start - midnight).total_seconds() / 1800))
+            seg_e = min(segments, int((end - midnight).total_seconds() / 1800) + 1)
+            for i in range(seg_s, seg_e):
+                timeline[i] = True
+
+        now_seg = int((now - midnight).total_seconds() / 1800)
+
+        parts: List[str] = []
+        for i, active in enumerate(timeline):
+            if active:
+                parts.append("[green]█[/]" if i <= now_seg else "[dim green]█[/]")
+            else:
+                parts.append("[dim]░[/]" if i <= now_seg else "[dim]·[/]")
+
+        bar = "".join(parts)
+        count = len(sessions)
+        label = f"[dim]{count} session{'s' if count != 1 else ''} today[/]"
+        return [f"📅 [value]Today's Sessions:[/]  {bar}  {label}"]
 
     def format_active_session_screen_v2(self, data: SessionDisplayData) -> list[str]:
         """Format complete active session screen using data class.
@@ -183,7 +349,7 @@ class SessionDisplayComponent:
             List of formatted screen lines
         """
 
-        screen_buffer = []
+        screen_buffer: list = []
 
         header_manager = HeaderManager()
         screen_buffer.extend(
@@ -195,11 +361,42 @@ class SessionDisplayComponent:
             )
         )
 
+        # Session timeline (today's activity) — shown above metrics
+        timeline_lines = self._render_session_timeline(
+            kwargs.get("all_blocks", []), kwargs.get("_args")
+        )
+        if timeline_lines:
+            screen_buffer.extend(timeline_lines)
+            screen_buffer.append("")
+
+        # Pre-compute projection percentages for depletion markers
+        time_remaining = max(0, total_session_minutes - elapsed_session_minutes)
+        cost_per_min = (
+            session_cost / max(1, elapsed_session_minutes)
+            if elapsed_session_minutes > 0
+            else 0
+        )
+
+        if burn_rate > 0 and token_limit > 0:
+            token_projected_pct = (
+                tokens_used + burn_rate * time_remaining
+            ) / token_limit * 100
+        else:
+            token_projected_pct = None
+
         if plan in ["custom", "pro", "max5", "max20"]:
             from claude_monitor.core.plans import DEFAULT_COST_LIMIT
 
             cost_limit_p90 = kwargs.get("cost_limit_p90", DEFAULT_COST_LIMIT)
             messages_limit_p90 = kwargs.get("messages_limit_p90", 1500)
+            model_trends = kwargs.get("model_trends")
+
+            if cost_per_min > 0 and cost_limit_p90 and cost_limit_p90 > 0:
+                cost_projected_pct: Optional[float] = (
+                    session_cost + cost_per_min * time_remaining
+                ) / cost_limit_p90 * 100
+            else:
+                cost_projected_pct = None
 
             screen_buffer.append("")
             if plan == "custom":
@@ -216,15 +413,17 @@ class SessionDisplayComponent:
                 if cost_limit_p90 > 0
                 else 0
             )
-            cost_bar = self._render_wide_progress_bar(cost_percentage)
+            cost_bar = self._render_wide_progress_bar(cost_percentage, cost_projected_pct)
             screen_buffer.append(
-                f"💰 [value]Cost Usage:[/]           {cost_bar} {cost_percentage:4.1f}%    [value]${session_cost:.2f}[/] / [dim]${cost_limit_p90:.2f}[/]"
+                f"💰 [value]Cost Usage:[/]           {cost_bar} {cost_percentage:4.1f}%"
+                f"    [value]${session_cost:.2f}[/] / [dim]${cost_limit_p90:.2f}[/]"
             )
             screen_buffer.append("")
 
-            token_bar = self._render_wide_progress_bar(usage_percentage)
+            token_bar = self._render_wide_progress_bar(usage_percentage, token_projected_pct)
             screen_buffer.append(
-                f"📊 [value]Token Usage:[/]          {token_bar} {usage_percentage:4.1f}%    [value]{tokens_used:,}[/] / [dim]{token_limit:,}[/]"
+                f"📊 [value]Token Usage:[/]          {token_bar} {usage_percentage:4.1f}%"
+                f"    [value]{tokens_used:,}[/] / [dim]{token_limit:,}[/]"
             )
             screen_buffer.append("")
 
@@ -235,7 +434,8 @@ class SessionDisplayComponent:
             )
             messages_bar = self._render_wide_progress_bar(messages_percentage)
             screen_buffer.append(
-                f"📨 [value]Messages Usage:[/]       {messages_bar} {messages_percentage:4.1f}%    [value]{sent_messages}[/] / [dim]{messages_limit_p90:,}[/]"
+                f"📨 [value]Messages Usage:[/]       {messages_bar} {messages_percentage:4.1f}%"
+                f"    [value]{sent_messages}[/] / [dim]{messages_limit_p90:,}[/]"
             )
             screen_buffer.append(f"[separator]{'─' * 60}[/]")
 
@@ -245,45 +445,42 @@ class SessionDisplayComponent:
                 else 0
             )
             time_bar = self._render_wide_progress_bar(time_percentage)
-            time_remaining = max(0, total_session_minutes - elapsed_session_minutes)
-            time_left_hours = int(time_remaining // 60)
-            time_left_mins = int(time_remaining % 60)
+            time_remaining_display = max(0, total_session_minutes - elapsed_session_minutes)
+            time_left_hours = int(time_remaining_display // 60)
+            time_left_mins = int(time_remaining_display % 60)
             screen_buffer.append(
                 f"⏱️  [value]Time to Reset:[/]       {time_bar} {time_left_hours}h {time_left_mins}m"
             )
             screen_buffer.append("")
 
-            if per_model_stats:
-                model_bar = self.model_usage.render(per_model_stats)
-                screen_buffer.append(f"🤖 [value]Model Distribution:[/]   {model_bar}")
-            else:
-                model_bar = self.model_usage.render({})
-                screen_buffer.append(f"🤖 [value]Model Distribution:[/]   {model_bar}")
+            model_bar = self.model_usage.render(per_model_stats or {}, trends=model_trends)
+            screen_buffer.append(f"🤖 [value]Model Distribution:[/]   {model_bar}")
             screen_buffer.append(f"[separator]{'─' * 60}[/]")
 
+            # Cache efficiency gauge
+            eff_line = self._render_cache_efficiency(per_model_stats or {}, session_cost)
+            if eff_line:
+                screen_buffer.append(eff_line)
+
             velocity_emoji = VelocityIndicator.get_velocity_emoji(burn_rate)
-            sparkline = kwargs.get("burn_rate_sparkline", "")
-            sparkline_str = f" [dim]{sparkline}[/]" if sparkline else ""
             screen_buffer.append(
-                f"🔥 [value]Burn Rate:[/]              [warning]{burn_rate:.1f}[/] [dim]tokens/min[/] {velocity_emoji}{sparkline_str}"
+                f"🔥 [value]Burn Rate:[/]              [warning]{burn_rate:.1f}[/] [dim]tokens/min[/] {velocity_emoji}"
             )
 
-            cost_per_min = (
-                session_cost / max(1, elapsed_session_minutes)
-                if elapsed_session_minutes > 0
-                else 0
-            )
             cost_per_min_display = CostIndicator.render(cost_per_min)
             screen_buffer.append(
                 f"💲 [value]Cost Rate:[/]              {cost_per_min_display} [dim]$/min[/]"
             )
+
+            # Full-width sparkline chart
+            sparkline_panel = self._render_sparkline_panel(
+                kwargs.get("burn_rate_history", [])
+            )
+            if sparkline_panel is not None:
+                screen_buffer.append("")
+                screen_buffer.append(sparkline_panel)
         else:
             cost_display = CostIndicator.render(session_cost)
-            cost_per_min = (
-                session_cost / max(1, elapsed_session_minutes)
-                if elapsed_session_minutes > 0
-                else 0
-            )
             cost_per_min_display = CostIndicator.render(cost_per_min)
             screen_buffer.append(f"💲 [value]Session Cost:[/]   {cost_display}")
             screen_buffer.append(
@@ -309,7 +506,9 @@ class SessionDisplayComponent:
             )
 
             if per_model_stats:
-                model_bar = self.model_usage.render(per_model_stats)
+                model_bar = self.model_usage.render(
+                    per_model_stats, trends=kwargs.get("model_trends")
+                )
                 screen_buffer.append(f"🤖 [value]Model Usage:[/]    {model_bar}")
 
             screen_buffer.append("")
@@ -410,7 +609,7 @@ class SessionDisplayComponent:
             List of formatted screen lines
         """
 
-        screen_buffer = []
+        screen_buffer: list = []
 
         header_manager = HeaderManager()
         screen_buffer.extend(
@@ -421,6 +620,13 @@ class SessionDisplayComponent:
                 kwargs.get("account_info"),
             )
         )
+
+        timeline_lines = self._render_session_timeline(
+            kwargs.get("all_blocks", []), args
+        )
+        if timeline_lines:
+            screen_buffer.extend(timeline_lines)
+            screen_buffer.append("")
 
         empty_token_bar = self.token_progress.render(0.0)
         screen_buffer.append(f"📊 [value]Token Usage:[/]    {empty_token_bar}")

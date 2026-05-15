@@ -49,6 +49,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+notifications = [
+  "plyer>=2.1.0"
+]
 dev = [
   "black>=24.0.0",
   "isort>=5.13.0",
