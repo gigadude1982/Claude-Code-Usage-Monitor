@@ -68,10 +68,8 @@ class HeaderManager:
                 parts.append(account_info["display_name"])
             if account_info.get("email"):
                 parts.append(account_info["email"])
-            if account_info.get("org_name"):
-                parts.append(account_info["org_name"])
-            if account_info.get("seat_tier"):
-                parts.append(account_info["seat_tier"])
+            if account_info.get("plan_label"):
+                parts.append(account_info["plan_label"])
             if parts:
                 lines.append(f"[dim][ {' · '.join(parts)} ][/]")
 
