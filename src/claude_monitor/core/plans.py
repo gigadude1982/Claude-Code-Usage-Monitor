@@ -52,15 +52,15 @@ PLAN_LIMITS: Dict[PlanType, Dict[str, Any]] = {
         "display_name": "Pro",
     },
     PlanType.MAX5: {
-        "token_limit": 88_000,
-        "cost_limit": 35.0,
+        "token_limit": 350_000,
+        "cost_limit": 90.0,
         "message_limit": 1_000,
         "display_name": "Max5",
     },
     PlanType.MAX20: {
-        "token_limit": 220_000,
-        "cost_limit": 140.0,
-        "message_limit": 2_000,
+        "token_limit": 1_400_000,
+        "cost_limit": 360.0,
+        "message_limit": 4_000,
         "display_name": "Max20",
     },
     PlanType.CUSTOM: {
@@ -84,7 +84,7 @@ class Plans:
     DEFAULT_TOKEN_LIMIT: int = _DEFAULTS["token_limit"]
     DEFAULT_COST_LIMIT: float = _DEFAULTS["cost_limit"]
     DEFAULT_MESSAGE_LIMIT: int = _DEFAULTS["message_limit"]
-    COMMON_TOKEN_LIMITS: List[int] = [19_000, 88_000, 220_000, 880_000]
+    COMMON_TOKEN_LIMITS: List[int] = [19_000, 350_000, 1_400_000]
     LIMIT_DETECTION_THRESHOLD: float = 0.95
 
     @classmethod
