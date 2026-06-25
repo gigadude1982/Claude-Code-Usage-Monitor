@@ -159,6 +159,19 @@ class Plans:
         return cls.get_plan_by_name(plan) is not None
 
 
+_PLAN_DISPLAY_LABELS: Dict[str, str] = {
+    "pro": "Claude Code Pro",
+    "max5": "Claude Code Max 5x",
+    "max20": "Claude Code Max 20x",
+    "custom": "Custom",
+}
+
+
+def get_plan_display_label(plan: str) -> str:
+    """Return a human-friendly plan label (e.g. 'Claude Code Max 5x')."""
+    return _PLAN_DISPLAY_LABELS.get(plan.lower(), plan)
+
+
 TOKEN_LIMITS: Dict[str, int] = {
     plan.value: config.token_limit
     for plan, config in Plans.all_plans().items()
