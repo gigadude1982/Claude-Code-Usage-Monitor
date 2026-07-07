@@ -1,0 +1,7 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "<GIT_BASH_PATH> /c/Users/<USERNAME>/.claude/statusline.sh",
+    "padding": 2
+  }
+}
